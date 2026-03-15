@@ -2,6 +2,8 @@
 name = "number-place-rs"
 version = "0.1.0"
 edition = "2024"
+description = "A generalised number-place (Sudoku) library written in Rust"
+license-file = "LICENSE"
 
 [lib]
 name = "number_place_rs"
