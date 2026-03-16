@@ -6,11 +6,20 @@ use crate::types::{Board, Coordinate};
 use super::GeneratorConstraints;
 use super::Symmetry;
 use crate::dlx::build_dlx;
+use crate::solver::{PuzzleContext, propagation_check};
 
 /// Check whether the given board has exactly one solution.
-fn is_unique(puzzle: &PuzzleDefinition, board: &Board) -> bool {
-    let mut dlx = build_dlx(puzzle, board);
-    dlx.count_solutions(2) == 1
+///
+/// First tries fast constraint propagation; falls back to DLX only when
+/// propagation alone cannot determine the result.
+fn is_unique(ctx: &PuzzleContext, puzzle: &PuzzleDefinition, board: &Board) -> bool {
+    match propagation_check(ctx, board) {
+        Some(result) => result,
+        None => {
+            let mut dlx = build_dlx(puzzle, board);
+            dlx.count_solutions(2) == 1
+        }
+    }
 }
 
 /// Get the symmetric partner of a cell under the given symmetry.
@@ -49,6 +58,8 @@ pub(super) fn remove_cells(
     rng: &mut impl rand::Rng,
 ) -> Board {
     let mut board = full_board.clone();
+    // Build PuzzleContext once; it is immutable for the lifetime of this call.
+    let ctx = PuzzleContext::new(&puzzle.groups, puzzle.group_size);
 
     // Collect all cells in the puzzle
     let mut cell_set: std::collections::BTreeSet<Coordinate> = std::collections::BTreeSet::new();
@@ -103,7 +114,7 @@ pub(super) fn remove_cells(
         // the upper bound, so we want to remove more cells to reach at or below max.
         // Since we're removing cells, we always try to remove more.
         // Check uniqueness
-        let unique = is_unique(puzzle, &board);
+        let unique = is_unique(&ctx, puzzle, &board);
 
         if unique {
             // Accept removal
