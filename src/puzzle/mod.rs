@@ -2,6 +2,8 @@
 
 pub mod presets;
 
+use std::collections::HashMap;
+
 use crate::types::Coordinate;
 
 /// A group is a set of cell coordinates where each symbol must appear exactly once.
@@ -25,12 +27,28 @@ pub struct PuzzleDefinition {
 }
 
 /// Visual rendering configuration attached to a [`PuzzleDefinition`].
+///
+/// # Cell styles
+///
+/// Each cell can carry an application-defined `u8` style bitmask stored in
+/// `cell_styles`.  The meaning of each bit is up to the caller; cells absent
+/// from the map implicitly have style `0`.
+///
+/// The built-in presets use the following bit assignments:
+///
+/// | Bit | Mask   | Meaning                      |
+/// |-----|--------|------------------------------|
+/// | 0   | `0x01` | Cell belongs to main diagonal |
+/// | 1   | `0x02` | Cell belongs to anti-diagonal |
+///
+/// Example: the intersection cell `(4, 4)` in a 9×9 diagonal puzzle gets
+/// style `0x03` (`0b00000011`).
 #[derive(Debug, Clone)]
 pub struct DrawConfig {
     /// Border segments that should be drawn with a thick line.
     pub border_segments: Vec<BorderSegment>,
-    /// Regions of cells that should receive a background colour.
-    pub shade_regions: Vec<ShadeRegion>,
+    /// Per-cell style bitmasks.  Only cells with a non-zero style need an entry.
+    pub cell_styles: HashMap<Coordinate, u8>,
 }
 
 /// A segment of the grid border described in grid-point coordinates.
@@ -44,13 +62,4 @@ pub struct BorderSegment {
     pub from: (u32, u32),
     /// End grid point (inclusive).
     pub to: (u32, u32),
-}
-
-/// A set of cells that should be drawn with a coloured background.
-#[derive(Debug, Clone)]
-pub struct ShadeRegion {
-    /// Cells belonging to this region.
-    pub cells: Vec<Coordinate>,
-    /// Background colour as `[R, G, B, A]` with each component in `0..=255`.
-    pub color: [u8; 4],
 }

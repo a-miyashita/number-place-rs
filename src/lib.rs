@@ -29,7 +29,7 @@ pub mod difficulty;
 pub(crate) mod dlx;
 
 pub use types::{Board, Coordinate, GeneratorError, SolverError};
-pub use puzzle::{PuzzleDefinition, DrawConfig, BorderSegment, ShadeRegion};
+pub use puzzle::{PuzzleDefinition, DrawConfig, BorderSegment};
 pub use difficulty::{DifficultyRank, DifficultyResult};
 pub use generator::{GeneratorConstraints, Symmetry};
 

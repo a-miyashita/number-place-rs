@@ -1,6 +1,6 @@
 //! Built-in preset puzzle definitions: 9×9 standard, 9×9 diagonal, and 16×16.
 
-use super::{BorderSegment, DrawConfig, Group, PuzzleDefinition, ShadeRegion};
+use super::{BorderSegment, DrawConfig, Group, PuzzleDefinition};
 
 /// Returns the standard 9×9 Sudoku puzzle definition.
 ///
@@ -57,16 +57,14 @@ pub fn preset_9x9_diagonal() -> PuzzleDefinition {
     base.groups.push(main_diag.clone());
     base.groups.push(anti_diag.clone());
 
-    // Add shade regions for the diagonals
-    let grey = [200u8, 200, 200, 128];
-    base.draw_config.shade_regions.push(ShadeRegion {
-        cells: main_diag,
-        color: grey,
-    });
-    base.draw_config.shade_regions.push(ShadeRegion {
-        cells: anti_diag,
-        color: grey,
-    });
+    // Set per-cell style bits for the diagonals.
+    // Bit 0 (0x01): main diagonal, Bit 1 (0x02): anti-diagonal.
+    for cell in &main_diag {
+        *base.draw_config.cell_styles.entry(*cell).or_insert(0) |= 0x01;
+    }
+    for cell in &anti_diag {
+        *base.draw_config.cell_styles.entry(*cell).or_insert(0) |= 0x02;
+    }
 
     base
 }
@@ -134,7 +132,7 @@ fn draw_config_9x9() -> DrawConfig {
 
     DrawConfig {
         border_segments: segs,
-        shade_regions: Vec::new(),
+        cell_styles: std::collections::HashMap::new(),
     }
 }
 
@@ -159,6 +157,6 @@ fn draw_config_16x16() -> DrawConfig {
 
     DrawConfig {
         border_segments: segs,
-        shade_regions: Vec::new(),
+        cell_styles: std::collections::HashMap::new(),
     }
 }
