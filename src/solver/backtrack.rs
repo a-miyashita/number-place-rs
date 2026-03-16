@@ -25,7 +25,7 @@ fn pick_mrv(ctx: &PuzzleContext, state: &SolverState) -> Option<usize> {
 }
 
 /// Non-randomised backtracking. Returns up to `limit` solutions.
-pub(super) fn backtrack_det(
+pub(crate) fn backtrack_det(
     ctx: &PuzzleContext,
     state: SolverState,
     limit: usize,

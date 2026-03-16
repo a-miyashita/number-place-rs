@@ -59,35 +59,40 @@ pub fn generate(
     const MAX_RETRIES: usize = 1000;
 
     for _ in 0..MAX_RETRIES {
-        // Step 1: generate a full board
-        let Some(full_board) = full_board::generate_full_board(puzzle, &seed_groups, rng) else {
-            continue;
-        };
-
-        // Step 2: remove cells
-        let puzzle_board = removal::remove_cells(&full_board, puzzle, constraints, rng);
-
-        // Step 3: check constraints
-        let clue_count = puzzle_board.len();
-
-        if let Some(min) = constraints.min_clues {
-            if clue_count < min {
-                continue;
-            }
+        if let Some(board) = attempt_once(puzzle, constraints, &seed_groups, rng) {
+            return Ok(board);
         }
-        if let Some(max) = constraints.max_clues {
-            if clue_count > max {
-                continue;
-            }
-        }
+    }
+    Err(GeneratorError::GenerationFailed)
+}
 
-        // Verify uniqueness via solver
-        match solve(puzzle, &puzzle_board) {
-            Ok(_) => return Ok(puzzle_board),
-            _ => continue,
+/// Single generation attempt. Returns `Some(board)` on success, `None` on failure.
+fn attempt_once(
+    puzzle: &PuzzleDefinition,
+    constraints: &GeneratorConstraints,
+    seed_groups: &[usize],
+    rng: &mut impl rand::Rng,
+) -> Option<Board> {
+    // Step 1: generate a full board
+    let full_board = full_board::generate_full_board(puzzle, seed_groups, rng)?;
+
+    // Step 2: remove cells
+    let puzzle_board = removal::remove_cells(&full_board, puzzle, constraints, rng);
+
+    // Step 3: check clue count constraints
+    let clue_count = puzzle_board.len();
+    if let Some(min) = constraints.min_clues {
+        if clue_count < min {
+            return None;
+        }
+    }
+    if let Some(max) = constraints.max_clues {
+        if clue_count > max {
+            return None;
         }
     }
 
-    Err(GeneratorError::GenerationFailed)
+    // Step 4: verify uniqueness via solver
+    solve(puzzle, &puzzle_board).ok().map(|_| puzzle_board)
 }
 

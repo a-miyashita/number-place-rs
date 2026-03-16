@@ -170,7 +170,16 @@ Difficulty ranks correspond to the following solving techniques:
 Each `PuzzleDefinition` carries a `DrawConfig` that a game application can use to render the board:
 
 - **`border_segments`** — thick-line edges expressed as pairs of grid points `(from, to)`. Default cell borders are thin; only the exceptions need to be listed.
-- **`shade_regions`** — groups of cells with a background colour (RGBA), used for diagonal highlights, Samurai overlaps, etc.
+- **`cell_styles`** — a `HashMap<Coordinate, u8>` of per-cell style bitmasks. Each bit's meaning is application-defined. Cells absent from the map implicitly have style `0`.
+
+The built-in presets use the following bit assignments for `cell_styles`:
+
+| Bit | Mask   | Meaning                       |
+|-----|--------|-------------------------------|
+| 0   | `0x01` | Cell belongs to main diagonal |
+| 1   | `0x02` | Cell belongs to anti-diagonal |
+
+For example, the intersection cell `(4, 4)` in a 9×9 diagonal puzzle has style `0x03`.
 
 The board width and height are not stored explicitly; the application derives them from the coordinate ranges present in the group list.
 
@@ -181,12 +190,12 @@ src/
   lib.rs                      Public API (solve, validate_board, generate, evaluate_difficulty)
   types.rs                    Coordinate, Board, SolverError, GeneratorError
   puzzle/
-    mod.rs                    PuzzleDefinition, DrawConfig, BorderSegment, ShadeRegion
+    mod.rs                    PuzzleDefinition, DrawConfig, BorderSegment
     presets.rs                Built-in presets (9×9, 9×9 diagonal, 16×16)
   solver/
     mod.rs                    Public solve() and validate_board()
     candidates.rs             PuzzleContext + SolverState (bitmask candidate tracking)
-    propagate.rs              Naked/Hidden Single constraint propagation
+    propagate.rs              Naked/Hidden Single constraint propagation (per placement)
     backtrack.rs              MRV + forward-checking backtracking
   dlx/
     mod.rs                    Algorithm X + Dancing Links (uniqueness check)
@@ -207,7 +216,7 @@ src/
 
 - **Group abstraction**: all puzzle variants are represented as a flat list of groups. The solver, generator, and difficulty evaluator contain no variant-specific logic.
 - **Bitmask candidates**: each cell's candidate set is stored as a `u32` bitmask (bit *k* = value *k* is a candidate), making clone and `popcount` cheap during backtracking.
-- **DLX for uniqueness**: the cell-removal step uses Algorithm X (Dancing Links) to count solutions up to 2, stopping as soon as a second solution is found.
+- **Propagation-first uniqueness**: the cell-removal step first runs a constraint-propagation fixpoint (Naked/Hidden Singles and Naked/Hidden Pairs). If propagation alone resolves the board the result is returned immediately; only when the board remains undetermined does the solver fall back to Algorithm X (Dancing Links), counting solutions up to 2 and stopping as soon as a second is found.
 - **Independent group seeding**: before backtracking, a maximum set of mutually independent groups is filled with random permutations, reducing the search space and producing diverse complete boards.
 - **RNG injection**: `generate` accepts `impl rand::Rng` explicitly, enabling reproducible tests with a seeded RNG.
 
