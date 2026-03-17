@@ -16,9 +16,8 @@
 //! let puzzle = preset_9x9();
 //! let constraints = GeneratorConstraints::default();
 //! let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-//! let board = number_place_rs::generate(&puzzle, &constraints, &mut rng).unwrap();
-//! let solution = number_place_rs::solve(&puzzle, &board).unwrap();
-//! assert!(number_place_rs::validate_board(&puzzle, &solution));
+//! let result = number_place_rs::generate(&puzzle, &constraints, &mut rng).unwrap();
+//! assert!(number_place_rs::validate_board(&puzzle, &result.solution));
 //! ```
 
 pub mod types;
@@ -31,7 +30,7 @@ pub(crate) mod dlx;
 pub use types::{Board, Coordinate, GeneratorError, SolverError};
 pub use puzzle::{PuzzleDefinition, DrawConfig, BorderSegment};
 pub use difficulty::{DifficultyRank, DifficultyResult};
-pub use generator::{GeneratorConstraints, Symmetry};
+pub use generator::{GeneratedPuzzle, GeneratorConstraints, Symmetry};
 
 /// Solve a puzzle. Returns `Ok(solution)` for a unique solution.
 ///
@@ -55,6 +54,9 @@ pub fn validate_board(puzzle: &PuzzleDefinition, board: &Board) -> bool {
 
 /// Generate a solvable puzzle satisfying the given constraints.
 ///
+/// Returns a [`GeneratedPuzzle`] containing both the initial board (clues only)
+/// and its unique solution.
+///
 /// # Errors
 ///
 /// - [`GeneratorError::GenerationFailed`] if constraints cannot be satisfied within the retry limit.
@@ -63,7 +65,7 @@ pub fn generate(
     puzzle: &PuzzleDefinition,
     constraints: &GeneratorConstraints,
     rng: &mut impl rand::Rng,
-) -> Result<Board, GeneratorError> {
+) -> Result<GeneratedPuzzle, GeneratorError> {
     generator::generate(puzzle, constraints, rng)
 }
 
@@ -251,12 +253,10 @@ mod tests {
         let puzzle = preset_9x9_diagonal();
         let constraints = GeneratorConstraints::default();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let board = generate(&puzzle, &constraints, &mut rng)
+        let result = generate(&puzzle, &constraints, &mut rng)
             .expect("diagonal puzzle generation failed");
-        let solution = solve(&puzzle, &board)
-            .expect("generated diagonal puzzle must have a unique solution");
         assert!(
-            validate_board(&puzzle, &solution),
+            validate_board(&puzzle, &result.solution),
             "Solution must satisfy all diagonal constraints"
         );
     }
@@ -270,9 +270,11 @@ mod tests {
         let puzzle = preset_9x9();
         let constraints = GeneratorConstraints::default();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let board = generate(&puzzle, &constraints, &mut rng).expect("generation failed");
-        // Result must be solvable
-        assert!(solve(&puzzle, &board).is_ok(), "Generated puzzle must have unique solution");
+        let result = generate(&puzzle, &constraints, &mut rng).expect("generation failed");
+        assert!(
+            validate_board(&puzzle, &result.solution),
+            "Solution must be valid"
+        );
     }
 
     #[test]
@@ -283,7 +285,7 @@ mod tests {
         let mut rng2 = rand::rngs::StdRng::seed_from_u64(99);
         let b1 = generate(&puzzle, &constraints, &mut rng1).expect("gen1 failed");
         let b2 = generate(&puzzle, &constraints, &mut rng2).expect("gen2 failed");
-        assert_eq!(b1, b2, "Same seed must produce same board");
+        assert_eq!(b1.board, b2.board, "Same seed must produce same board");
     }
 
     #[test]
@@ -294,8 +296,8 @@ mod tests {
             ..Default::default()
         };
         let mut rng = rand::rngs::StdRng::seed_from_u64(7);
-        let board = generate(&puzzle, &constraints, &mut rng).expect("generation failed");
-        assert!(board.len() >= 30, "Expected >= 30 clues, got {}", board.len());
+        let result = generate(&puzzle, &constraints, &mut rng).expect("generation failed");
+        assert!(result.board.len() >= 30, "Expected >= 30 clues, got {}", result.board.len());
     }
 
     #[test]
@@ -306,8 +308,8 @@ mod tests {
             ..Default::default()
         };
         let mut rng = rand::rngs::StdRng::seed_from_u64(13);
-        let board = generate(&puzzle, &constraints, &mut rng).expect("generation failed");
-        assert!(board.len() <= 50, "Expected <= 50 clues, got {}", board.len());
+        let result = generate(&puzzle, &constraints, &mut rng).expect("generation failed");
+        assert!(result.board.len() <= 50, "Expected <= 50 clues, got {}", result.board.len());
     }
 
     #[test]
@@ -318,13 +320,13 @@ mod tests {
             ..Default::default()
         };
         let mut rng = rand::rngs::StdRng::seed_from_u64(21);
-        let board = generate(&puzzle, &constraints, &mut rng).expect("generation failed");
+        let result = generate(&puzzle, &constraints, &mut rng).expect("generation failed");
 
         // Verify 180-degree rotational symmetry: if (x, y) is a hint, (8-x, 8-y) must also be.
-        for &(x, y) in board.keys() {
+        for &(x, y) in result.board.keys() {
             let partner = (8 - x, 8 - y);
             assert!(
-                board.contains_key(&partner),
+                result.board.contains_key(&partner),
                 "Missing symmetric partner for ({}, {}): expected ({}, {})",
                 x, y, 8 - x, 8 - y
             );
