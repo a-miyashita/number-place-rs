@@ -7,7 +7,6 @@ mod removal;
 use crate::difficulty::DifficultyRank;
 use crate::puzzle::PuzzleDefinition;
 use crate::types::{Board, GeneratorError};
-use crate::solver::solve;
 
 /// Symmetry mode for generated puzzles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +19,15 @@ pub enum Symmetry {
     HorizontalMirror,
     /// Top-bottom mirror symmetry.
     VerticalMirror,
+}
+
+/// The result of a successful puzzle generation.
+#[derive(Debug, Clone)]
+pub struct GeneratedPuzzle {
+    /// Initial board containing only the clues (holes are absent from the map).
+    pub board: Board,
+    /// The unique solution to [`board`](Self::board).
+    pub solution: Board,
 }
 
 /// Constraints passed to the puzzle generator.
@@ -48,38 +56,41 @@ impl Default for GeneratorConstraints {
 
 /// Generate a solvable puzzle satisfying the given constraints.
 ///
-/// Pass any `rand::Rng` implementation; use a seeded RNG for reproducibility.
+/// Returns a [`GeneratedPuzzle`] containing both the initial board (clues only)
+/// and its unique solution. Pass any `rand::Rng` implementation; use a seeded
+/// RNG for reproducibility.
 pub fn generate(
     puzzle: &PuzzleDefinition,
     constraints: &GeneratorConstraints,
     rng: &mut impl rand::Rng,
-) -> Result<Board, GeneratorError> {
+) -> Result<GeneratedPuzzle, GeneratorError> {
     let seed_groups = independent::find_max_independent_groups(puzzle);
 
     const MAX_RETRIES: usize = 1000;
 
     for _ in 0..MAX_RETRIES {
-        if let Some(board) = attempt_once(puzzle, constraints, &seed_groups, rng) {
-            return Ok(board);
+        if let Some((board, solution)) = attempt_once(puzzle, constraints, &seed_groups, rng) {
+            return Ok(GeneratedPuzzle { board, solution });
         }
     }
     Err(GeneratorError::GenerationFailed)
 }
 
-/// Single generation attempt. Returns `Some(board)` on success, `None` on failure.
+/// Single generation attempt.
+/// Returns `Some((puzzle_board, solution))` on success, `None` on failure.
 fn attempt_once(
     puzzle: &PuzzleDefinition,
     constraints: &GeneratorConstraints,
     seed_groups: &[usize],
     rng: &mut impl rand::Rng,
-) -> Option<Board> {
-    // Step 1: generate a full board
+) -> Option<(Board, Board)> {
+    // Step 1: generate a fully solved board — this becomes the solution.
     let full_board = full_board::generate_full_board(puzzle, seed_groups, rng)?;
 
-    // Step 2: remove cells
+    // Step 2: remove cells while maintaining uniqueness (checked inside remove_cells).
     let puzzle_board = removal::remove_cells(&full_board, puzzle, constraints, rng);
 
-    // Step 3: check clue count constraints
+    // Step 3: check clue count constraints.
     let clue_count = puzzle_board.len();
     if let Some(min) = constraints.min_clues {
         if clue_count < min {
@@ -92,7 +103,8 @@ fn attempt_once(
         }
     }
 
-    // Step 4: verify uniqueness via solver
-    solve(puzzle, &puzzle_board).ok().map(|_| puzzle_board)
+    // Step 4: full_board is already the unique solution — uniqueness was verified
+    // incrementally by remove_cells, so no second solver call is needed.
+    Some((puzzle_board, full_board))
 }
 
